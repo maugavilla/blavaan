@@ -651,7 +651,7 @@ blavaan <- function(...,  # default lavaan arguments
                 if("data" %in% names(mcmcextra) & "moment_match_k_threshold" %in% names(mcmcextra$data)){
                     ## FIXME these do not cover level 2 parameters
                     moment_match_monitors <- c("Lambda_y_free", "B_free", 
-                        "Theta_sd_free", "Theta_r_free", "Psi_sd_free", 
+                        "Theta_sd_free", paste0("Theta_r_mat_", 1:5), "Theta_r_free", "Psi_sd_free", 
                         paste0("Psi_r_mat_", 1:5), "Psi_r_free", "Nu_free", "Alpha_free")
                     moment_match_monitors <- c(moment_match_monitors,
                                                paste0(moment_match_monitors, "_c"))
@@ -697,7 +697,7 @@ blavaan <- function(...,  # default lavaan arguments
                 fnm <- paste0(jagdir, "/sem.", fext)
                 if(target %in% c("stan", "cmdstan")){
                     if(mcmcextra$dosam){
-                        cat(getFromNamespace("stanmodels", "bsam")$stanmarg_bsam@model_code, file = fnm)
+                        cat(getFromNamespace("stanmodels", "blavsam")$stanmarg_bsam@model_code, file = fnm)
                     } else {
                         cat(stanmodels$stanmarg@model_code, file = fnm)
                     }
@@ -726,7 +726,7 @@ blavaan <- function(...,  # default lavaan arguments
             } else if(target == "cmdstan"){
               rjarg <- with(jagtrans, list(data = data, init = inits))
             } else if(mcmcextra$dosam){
-              rjarg <- with(jagtrans, list(object = getFromNamespace("stanmodels", "bsam")$stanmarg_bsam,
+              rjarg <- with(jagtrans, list(object = getFromNamespace("stanmodels", "blavsam")$stanmarg_bsam,
                                            data = data,
                                            pars = sampparms,
                                            init = inits))
@@ -759,7 +759,7 @@ blavaan <- function(...,  # default lavaan arguments
                     fname <- paste0("stanmarg_", packageDescription("blavaan")["Version"])
                     fdir <- paste0(cmdstanr::cmdstan_path(), "/")
                     if(mcmcextra$dosam) {
-                      obj <- getFromNamespace("stanmodels", "bsam")$stanmarg_bsam
+                      obj <- getFromNamespace("stanmodels", "blavsam")$stanmarg_bsam
                     } else {
                       obj <- stanmodels$stanmarg
                     }
@@ -927,7 +927,7 @@ blavaan <- function(...,  # default lavaan arguments
         attr(x, "control") <- bcontrol
 
         ## for sam, replace fixed psi entries with sampled means
-        if (mcmcextra$dosam & LAV@Options$std.lv) {
+        if (mcmcextra$dosam && jag.do.fit && LAV@Options$std.lv) {
           LAV@Model@GLIST$psi <- matrix(stansumm[grep("^PS\\[", rownames(stansumm)), 'mean'],
                                         jagtrans$data$m, jagtrans$data$m, byrow = TRUE)
         }
@@ -1047,7 +1047,7 @@ blavaan <- function(...,  # default lavaan arguments
     if(target == "stan") {
       if(covres$dobf) {
         domll <- TRUE
-      } else if((covres$diagthet | covres$fullthet) & l2s$blkpsi) {
+      } else if(l2s$blktheta & l2s$blkpsi) {
         domll <- TRUE
       } else {
         domll <- FALSE
@@ -1204,16 +1204,11 @@ bcfa <- bsem <- function(..., cp = "srs", dp = NULL,
     mc$model.type      = as.character( mc[[1L]] )
     if(length(mc$model.type) == 3L) mc$model.type <- mc$model.type[3L]
     mc$model.type <- gsub("^b", "", mc$model.type)
-    mc$n.chains        = n.chains
-    mc$int.ov.free     = TRUE
-    mc$int.lv.free     = FALSE
-    mc$auto.fix.first  = !std.lv
-    mc$auto.fix.single = TRUE
-    mc$auto.var        = TRUE
-    mc$auto.cov.lv.x   = TRUE
-    mc$auto.cov.y      = TRUE
-    mc$auto.th         = TRUE
-    mc$auto.delta      = TRUE
+    mc$n.chains <- n.chains
+    defparms <- c(int.ov.free = TRUE, int.lv.free = FALSE, auto.fix.first = !std.lv,
+                  auto.fix.single = TRUE, auto.var = TRUE, auto.cov.lv.x = TRUE,
+                  auto.cov.y = TRUE, auto.th = TRUE, auto.delta = TRUE)
+    mc[names(defparms)[!(names(defparms) %in% names(mc))]] <- defparms[!(names(defparms) %in% names(mc))]
     mc[[1L]] <- quote(blavaan)
 
     ## change defaults depending on jags vs stan
@@ -1248,15 +1243,11 @@ bgrowth <- function(..., cp = "srs", dp = NULL,
 
     mc <- match.call()
     mc$model.type      = "growth"
-    mc$int.ov.free     = FALSE
-    mc$int.lv.free     = TRUE
-    mc$auto.fix.first  = !std.lv
-    mc$auto.fix.single = TRUE
-    mc$auto.var        = TRUE
-    mc$auto.cov.lv.x   = TRUE
-    mc$auto.cov.y      = TRUE
-    mc$auto.th         = TRUE
-    mc$auto.delta      = TRUE
+    mc$n.chains <- n.chains
+    defparms <- c(int.ov.free = FALSE, int.lv.free = TRUE, auto.fix.first  = !std.lv,
+                  auto.fix.single = TRUE, auto.var = TRUE, auto.cov.lv.x   = TRUE,
+                  auto.cov.y = TRUE, auto.th = TRUE, auto.delta = TRUE)
+    mc[names(defparms)[!(names(defparms) %in% names(mc))]] <- defparms[!(names(defparms) %in% names(mc))]
     mc[[1L]] <- quote(blavaan)
 
     ## change defaults depending on jags vs stan
